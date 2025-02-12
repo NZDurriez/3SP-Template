@@ -1,6 +1,14 @@
 document.addEventListener("DOMContentLoaded", function() {
+
+  // Auto-resize the "interactions" textarea to fit its content.
+  const interactionsTextArea = document.getElementById("interactions");
+  interactionsTextArea.addEventListener("input", function() {
+    this.style.height = "auto"; // Reset height
+    this.style.height = this.scrollHeight + "px"; // Set height to match content
+  });
+
   // Copy helper function using the Clipboard API.
-  // Now accepts a second parameter: the button element.
+  // Accepts a second parameter: the button element.
   window.copyText = function(elementId, button) {
     const text = document.getElementById(elementId).textContent;
     navigator.clipboard.writeText(text).then(() => {
@@ -57,25 +65,38 @@ document.addEventListener("DOMContentLoaded", function() {
     // Split into blocks and filter out any block that contains "Revoked by"
     const blocks = groupInfractions(interactions);
     const validBlocks = blocks.filter(block => !/revoked by/i.test(block));
-    const validInteractions = validBlocks.join('\n\n');
+
+    // Transform each valid block to include only the action and the reason.
+    // We assume a proper block has at least three non-empty lines:
+    //   - Line 1: Action (e.g., "WARNED by CeeCee")
+    //   - Line 2: ID/timestamp (to omit)
+    //   - Line 3: Reason
+    // If there are only two lines, return both.
+    const transformedBlocks = validBlocks.map(block => {
+      const lines = block.split("\n").map(line => line.trim()).filter(line => line !== "");
+      if (lines.length >= 3) {
+        return lines[0] + "\n" + lines[2];
+      } else if (lines.length === 2) {
+        return lines[0] + "\n" + lines[1];
+      } else {
+        return lines[0] || "";
+      }
+    });
+    const validInteractions = transformedBlocks.join('\n\n');
 
     /* 
-      Insert a space between an action (warn/warned, kick/kicked, ban/banned) and a following digit.
+      Insert a space between an action (warn/warned, kick/kicked, ban/banned)
+      and a following digit if needed.
     */
     let processedInteractions = validInteractions.replace(/(warn(?:ed)?|kick(?:ed)?|ban(?:ned)?)(?=\d)/gi, '$1 ');
 
-    // Remove the " by <staff member>" portion that follows the action word.
+    // Remove any lingering " by <staff member>" text following the action word.
     processedInteractions = processedInteractions.replace(/(warn(?:ed)?|kick(?:ed)?|ban(?:ned)?)(\s+by\s+\S+)/gi, '$1');
 
-    // Tally occurrences in the processed text.
+    // (Optional) Tally counts can be computed if needed.
     let warnCount = (processedInteractions.match(/warn/gi) || []).length;
     let kickCount = (processedInteractions.match(/kick/gi) || []).length;
     let banCount = (processedInteractions.match(/ban/gi) || []).length;
-
-    // Update the tally in the DOM.
-    document.getElementById("warnCount").innerText = warnCount;
-    document.getElementById("kickCount").innerText = kickCount;
-    document.getElementById("banCount").innerText = banCount;
 
     // Clean up interactions by trimming each line.
     const cleanedInteractions = processedInteractions
@@ -85,37 +106,42 @@ document.addEventListener("DOMContentLoaded", function() {
 
     const formattedDiscordID = discordID !== "Nil" ? `<@${discordID}>` : "Nil";
 
-    // Wrap the summary section in Discord code blocks.
-    const fullOutput = `Hello ${formattedDiscordID},
+    // Build the full output using the exact template.
+    const fullOutput = `Hello ${formattedDiscordID}, 
 
-The Beehive Staff have noticed that you have been involved in multiple negative interactions (Warns: ${warnCount}, Kicks: ${kickCount}, Bans: ${banCount}) on the server. It is apparent that there is a consistent breach of our server rules and guidelines, which raises concerns about the frequency of our interactions with you.
+The Beehive Staff have noticed that you have been involved in multiple negative interactions (Warns/Kicks/Bans) on the server. It is apparent that there is a consistent breach of our server rules and guidelines, which raises concerns about the frequency of our interactions with you. 
 
-Here is a summary of your prior staff interactions:
-\`\`\`
-${cleanedInteractions}
-\`\`\`
+Below is a summary of your prior staff interactions:
+\`\`\`${cleanedInteractions}\`\`\`
 
-Due to these interactions, the Beehive Staff Team now require an immediate adjustment in your roleplay approach. Strict compliance with our server rules and guidelines is imperative.
+Due to these interactions, the Beehive Staff Team now require an immediate adjustment in your roleplay approach. Strict compliance with our server rules and guidelines is imperative. 
+
+Given the frequency of these interactions, the staff team has unanimously decided to implement a Three Strike Policy (3SP) effective immediately. Any staff interaction that violates the server rules/guidelines will be considered a "strike," and any staff member is authorized to issue one. The consequences for strikes become progressively more severe, as outlined below:
 
 **Three Strike Policy:**
-- Strike 1: 1-Day Ban | Subject to a longer ban
-- Strike 2: 3-Day Ban | Subject to a longer ban
+- Strike 1: 1 Day Ban | Subject to longer ban 
+- Strike 2: 3 Day Ban | Subject to longer ban 
 - Strike 3: Permanent Ban
 
-If you receive a third strike resulting in a Permanent Ban, you will have the opportunity to appeal this on our website.
+In the event that you receive a third strike resulting in a Permanent Ban, you will have the opportunity to appeal this on our website. Ban appeals are reviewed at the end of each month during the staff's available time, and immediate unbanning is not guaranteed.
 
-**Important Notes:**
-- Surveillance methods are in place even when no staff members are online.
-- The timeframe for being on 3SP is not predetermined.
+**Working towards Coming Off 3SP:**
+We believe in second chances and positive change within our community. You can work towards coming off 3SP and returning to normal stature within the community by demonstrating consistent good behaviour and adherence to our server rules and guidelines. Engage in positive roleplay, respect fellow players and staff members, and actively contribute to a welcoming and enjoyable gaming environment.
+
+The Beehive Staff Team conduct monthly reviews of members who are on 3SP, assessing their conduct for that month. This review process aims to evaluate your progress and, when appropriate, grant your return to regular status within the community. Your continued good behavior and adherence to server rules will be taken into consideration during these reviews. 
+
+**Please take note of the following:**
+- Surveillance methods are in place even when no staff members are online to monitor player activities.
+- The timeframe for being on 3SP is not predetermined; however, demonstrating good behavior and engaging in positive roleplay may lead to its removal sooner. 
 - Community Rule 11 always applies.
 
-Please react with ✅ to acknowledge this message.
+If you have any questions or comments, feel free to share them below. Otherwise, please react to this message with a ✅, and we will close the ticket.
 
-Kind Regards,  
-${staffMember}  
+Kind Regards,
+${staffMember},
 ${staffRole}`;
 
-    // For non-Nitro users, split the text at a newline boundary near the midpoint.
+    // For non-Nitro users, split the output at a newline boundary near the midpoint.
     if (!hasNitro) {
       let midPoint = Math.floor(fullOutput.length / 2);
       let splitIndex = fullOutput.lastIndexOf("\n", midPoint);
