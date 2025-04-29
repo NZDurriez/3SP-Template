@@ -3,51 +3,76 @@ document.addEventListener("DOMContentLoaded", function() {
   // Auto-resize the "interactions" textarea to fit its content.
   const interactionsTextArea = document.getElementById("interactions");
   interactionsTextArea.addEventListener("input", function() {
-    this.style.height = "auto"; // Reset height
-    this.style.height = this.scrollHeight + "px"; // Set height to match content
+    this.style.height = "auto";
+    this.style.height = this.scrollHeight + "px";
   });
 
   // Copy helper function using the Clipboard API.
-  // Accepts a second parameter: the button element.
   window.copyText = function(elementId, button) {
     const text = document.getElementById(elementId).textContent;
     navigator.clipboard.writeText(text).then(() => {
       const originalText = button.textContent;
       const originalBg = button.style.backgroundColor;
       button.textContent = "Copied";
-      button.style.backgroundColor = "#FFC107"; // yellow background
+      button.style.backgroundColor = "#FFC107";
       setTimeout(() => {
         button.textContent = originalText;
         button.style.backgroundColor = originalBg || "#28a745";
       }, 2000);
     }).catch(err => {
-      console.error("Failed to copy text: ", err);
+      console.error("Failed to copy text:", err);
     });
   };
 
-  document.getElementById("generate3SP").addEventListener("click", function() {
-    const discordID = document.getElementById("discordID").value.replace(/\D/g, '') || "Nil";
-    const interactionsElement = document.getElementById("interactions");
-    const staffMember = document.getElementById("staffMember").value || "Nil";
-    const staffRole = document.getElementById("staffRole").value || "Nil";
-    const nitroSelection = document.getElementById("discordNitro");
-    const hasNitro = nitroSelection && nitroSelection.value === "yes"; // "yes" means Nitro
+  // Helper: split a verbatim message into three parts (≤1999 chars), backtracking to avoid cutting words,
+  // and ensure new parts do not start with a space.
+  function splitIntoThreeVerbatim(message) {
+    const MAX = 1999;
+    const parts = [];
+    let start = 0;
 
-    if (!interactionsElement) {
-      console.error("Interactions element not found!");
-      return;
+    for (let i = 0; i < 3; i++) {
+      if (start >= message.length) {
+        parts.push("");
+        continue;
+      }
+
+      let end = Math.min(start + MAX, message.length);
+      if (end < message.length) {
+        const lastSpace = message.lastIndexOf(" ", end);
+        const lastNl    = message.lastIndexOf("\n", end);
+        const splitPos  = Math.max(lastSpace, lastNl);
+        if (splitPos > start) {
+          end = splitPos;
+        }
+      }
+
+      let part = message.slice(start, end);
+      // Remove leading space if this is part 2 or 3
+      if (i > 0 && part.startsWith(" ")) {
+        part = part.slice(1);
+      }
+
+      parts.push(part);
+      start = end;
     }
 
-    let interactions = interactionsElement.value || "Nil";
+    return parts;
+  }
 
-    // GROUPING: Split the input text into blocks (each block represents one infraction).
+  document.getElementById("generate3SP").addEventListener("click", function() {
+    const discordID    = document.getElementById("discordID").value.replace(/\D/g, '') || "Nil";
+    const interactions = document.getElementById("interactions").value || "Nil";
+    const staffMember  = document.getElementById("staffMember").value || "Nil";
+    const staffRole    = document.getElementById("staffRole").value || "Nil";
+    const hasNitro     = document.getElementById("discordNitro").value === "yes";
+
+    // GROUPING: Split the input text into infraction blocks
     function groupInfractions(text) {
       const lines = text.split('\n');
       let blocks = [];
       let currentBlock = [];
-      const isInfractionStart = (line) => {
-        return /^(warn(?:ed)?|kick(?:ed)?|ban(?:ned)?)/i.test(line.trim());
-      };
+      const isInfractionStart = (line) => /^(warn(?:ed)?|kick(?:ed)?|ban(?:ned)?)/i.test(line.trim());
 
       for (let line of lines) {
         if (isInfractionStart(line) && currentBlock.length > 0) {
@@ -63,14 +88,13 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     const blocks = groupInfractions(interactions);
-    // FILTERING: Exclude any block that contains "Revoked by"
     const validBlocks = blocks.filter(block => !/revoked by/i.test(block));
 
-    // TALLYING: Count actions using the first non-empty line of each valid block.
+    // TALLYING: Count warns, kicks, bans
     let warnCount = 0, kickCount = 0, banCount = 0;
     validBlocks.forEach(block => {
-      const lines = block.split("\n").map(line => line.trim()).filter(line => line !== "");
-      if (lines.length > 0) {
+      const lines = block.split("\n").map(l => l.trim()).filter(l => l);
+      if (lines.length) {
         const actionLine = lines[0];
         if (/warn/i.test(actionLine)) warnCount++;
         if (/kick/i.test(actionLine)) kickCount++;
@@ -78,41 +102,28 @@ document.addEventListener("DOMContentLoaded", function() {
       }
     });
 
-    // TRANSFORMATION: For each valid block, extract only the action and the reason.
-    // We assume a proper block has at least 3 non-empty lines:
-    //   - Line 1: Action (e.g., "WARNED by CeeCee")
-    //   - Line 2: ID/timestamp (to omit)
-    //   - Line 3: Reason
-    // If only 2 lines exist, we take both.
+    // TRANSFORMATION: Extract action + reason
     const transformedBlocks = validBlocks.map(block => {
-      const lines = block.split("\n").map(line => line.trim()).filter(line => line !== "");
+      const lines = block.split("\n").map(l => l.trim()).filter(l => l);
       if (lines.length >= 3) {
         return lines[0] + "\n" + lines[2];
       } else if (lines.length === 2) {
         return lines[0] + "\n" + lines[1];
-      } else {
-        return lines[0] || "";
       }
+      return lines[0] || "";
     });
     const validInteractions = transformedBlocks.join('\n\n');
 
-    /* 
-      PROCESSING: 
-      - Insert a space between an action (warn/warned, kick/kicked, ban/banned) and a following digit if needed.
-      - Remove any lingering " by <staff member>" text.
-    */
+    // PROCESSING: Fix spacing and remove "by <staff>"
     let processedInteractions = validInteractions.replace(/(warn(?:ed)?|kick(?:ed)?|ban(?:ned)?)(?=\d)/gi, '$1 ');
     processedInteractions = processedInteractions.replace(/(warn(?:ed)?|kick(?:ed)?|ban(?:ned)?)(\s+by\s+\S+)/gi, '$1');
 
-    // CLEANING: Trim each line.
-    const cleanedInteractions = processedInteractions
-      .split("\n")
-      .map(line => line.trim())
-      .join("\n");
+    // CLEANING: Trim each line
+    const cleanedInteractions = processedInteractions.split("\n").map(l => l.trim()).join("\n");
 
     const formattedDiscordID = discordID !== "Nil" ? `<@${discordID}>` : "Nil";
 
-    // OUTPUT: Build the full output using your exact template.
+    // OUTPUT: Full 3SP template (verbatim)
     const fullOutput = `Hello ${formattedDiscordID}, 
 
 The Beehive Staff have noticed that you have been involved in multiple negative interactions (Warns/Kicks/Bans) on the server. It is apparent that there is a consistent breach of our server rules and guidelines, which raises concerns about the frequency of our interactions with you. 
@@ -136,53 +147,36 @@ We believe in second chances and positive change within our community. You can w
 
 The Beehive Staff Team conduct monthly reviews of members who are on 3SP, assessing their conduct for that month. This review process aims to evaluate your progress and, when appropriate, grant your return to regular status within the community. Your continued good behavior and adherence to server rules will be taken into consideration during these reviews. 
 
-**Please take note of the following:**
-- Surveillance methods are in place even when no staff members are online to monitor player activities.
-- The timeframe for being on 3SP is not predetermined; however, demonstrating good behavior and engaging in positive roleplay may lead to its removal sooner. 
-- Community Rule 11 always applies.
+**Please take note of the following:**  
+- Surveillance methods are in place even when no staff members are online to monitor player activities.  
+- The timeframe for being on 3SP is not predetermined; however, demonstrating good behavior and engaging in positive roleplay may lead to its removal sooner.  
+- Community Rule 11 always applies.  
 
 If you have any questions or comments, feel free to share them below. Otherwise, please react to this message with a ✅, and we will close the ticket.
 
-Kind Regards,
-${staffMember},
+Kind Regards,  
+${staffMember},  
 ${staffRole}`;
 
-    // SPLITTING OUTPUT: For non-Nitro users, split the output near the midpoint (at a newline boundary).
+    // SPLITTING OUTPUT & DISPLAY
     if (!hasNitro) {
-      let midPoint = Math.floor(fullOutput.length / 2);
-      let splitIndex = fullOutput.lastIndexOf("\n", midPoint);
-      if (splitIndex === -1) {
-        splitIndex = fullOutput.indexOf("\n", midPoint);
-        if (splitIndex === -1) {
-          splitIndex = midPoint;
-        }
-      }
-      let part1 = fullOutput.substring(0, splitIndex);
-      let part2 = fullOutput.substring(splitIndex);
-
-      // If the first part has an unclosed code block, close it and reopen in part2.
-      let codeBlockCount = (part1.match(/```/g) || []).length;
-      if (codeBlockCount % 2 !== 0) {
-         part1 = part1 + "\n```";
-         part2 = "```\n" + part2;
-      }
-      
-      document.getElementById("outputShort3SP").textContent = part1;
-      document.getElementById("outputShort3SP_Part2").textContent = part2;
-
-      // Show the two separate output containers.
-      document.getElementById("shortOutputContainer").style.display = "block";
+      const [p1, p2, p3] = splitIntoThreeVerbatim(fullOutput);
+      document.getElementById("outputShort3SP").textContent      = p1;
+      document.getElementById("outputShort3SP_Part2").textContent = p2;
+      document.getElementById("outputShort3SP_Part3").textContent = p3;
+      document.getElementById("shortOutputContainer").style.display      = "block";
       document.getElementById("shortOutputPart2Container").style.display = "block";
-      document.getElementById("fullOutputContainer").style.display = "none";
+      document.getElementById("shortOutputPart3Container").style.display = p3.length ? "block" : "none";
+      document.getElementById("fullOutputContainer").style.display       = "none";
     } else {
       document.getElementById("outputFull3SP").textContent = fullOutput;
-      // Show the single full output container.
-      document.getElementById("fullOutputContainer").style.display = "block";
-      document.getElementById("shortOutputContainer").style.display = "none";
+      document.getElementById("fullOutputContainer").style.display       = "block";
+      document.getElementById("shortOutputContainer").style.display      = "none";
       document.getElementById("shortOutputPart2Container").style.display = "none";
+      document.getElementById("shortOutputPart3Container").style.display = "none";
     }
 
-    // Update the tally boxes with the computed counts.
+    // Update tally boxes
     document.getElementById("warnCount").innerText = warnCount;
     document.getElementById("kickCount").innerText = kickCount;
     document.getElementById("banCount").innerText = banCount;
