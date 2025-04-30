@@ -1,7 +1,7 @@
-/* Global box-sizing rule to include padding and border in element widths */
-*,
-*::before,
-*::after {
+/* style.css */
+
+/* Global box‐sizing rule */
+*, *::before, *::after {
   box-sizing: border-box;
 }
 
@@ -11,7 +11,6 @@ body {
   font-family: Arial, sans-serif;
   margin: 0;
   padding: 0;
-  /* Layout starts at the top and allows scrolling */
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
@@ -25,7 +24,7 @@ body {
   background: #333;
   padding: 20px;
   border-radius: 10px;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 10px rgba(0,0,0,0.5);
   text-align: center;
   margin-top: 20px;
 }
@@ -38,7 +37,9 @@ body {
   padding: 5px;
 }
 
-input, select, textarea {
+input,
+select,
+textarea {
   width: 100%;
   padding: 10px;
   border: 1px solid #aaa;
@@ -61,14 +62,13 @@ input, select, textarea {
   padding: 10px;
   border-radius: 10px;
   font-weight: bold;
-  color: white;
   text-align: center;
   margin: 5px;
 }
 
-.tally-warn { background-color: #FFC107; } /* Yellow for warnings */
-.tally-kick { background-color: #FFA500; } /* Orange for kicks */
-.tally-ban { background-color: #DC3545; } /* Red for bans */
+.tally-warn { background-color: #FFC107; }
+.tally-kick { background-color: #FFA500; }
+.tally-ban  { background-color: #DC3545; }
 
 button {
   width: 100%;
@@ -86,34 +86,38 @@ button:hover {
   background: #0056b3;
 }
 
-/* Style for the output text */
+#boxCount {
+  display: none;
+  margin: 10px auto;
+  background: #28a745;
+  color: #ffffff;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-weight: bold;
+  width: fit-content;
+}
+
 .output {
   text-align: left;
   white-space: pre-wrap;
   margin-top: 10px;
 }
 
-/* Output box styling with relative positioning for the copy button */
 .output-box {
   position: relative;
   background: #444;
   border: 1px solid #666;
   padding: 10px;
   margin-top: 10px;
+  cursor: pointer;
 }
 
-/* Copy button styling:
-   - Positioned at the top center as a rounded rectangle.
-   - Set to have a width equal to 50% of the output box.
-   - Appears only when hovering over the output box.
-*/
 .copy-btn {
   position: absolute;
   top: 5px;
   left: 50%;
   transform: translateX(-50%);
   width: 50%;
-  text-align: center;
   padding: 4px 0;
   font-size: 0.7em;
   background: #28a745;
@@ -127,4 +131,40 @@ button:hover {
 
 .output-box:hover .copy-btn {
   opacity: 1;
+}
+
+.part-number {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background: #28a745;
+  color: #ffffff;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.75em;
+}
+
+/* Image stamp overlay */
+.copy-stamp {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 120px;
+  height: auto;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* Tooltip */
+.tooltip {
+  position: absolute;
+  background: #FFD700;
+  color: #000;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.8em;
+  pointer-events: none;
+  white-space: nowrap;
+  display: none;
+  z-index: 1000;
 }
