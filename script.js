@@ -1,135 +1,94 @@
-document.addEventListener("DOMContentLoaded", function() {
+// script.js
 
-  // Auto-resize the "interactions" textarea to fit its content.
+document.addEventListener("DOMContentLoaded", () => {
+  // Auto-resize textarea
   const interactionsTextArea = document.getElementById("interactions");
   interactionsTextArea.addEventListener("input", function() {
     this.style.height = "auto";
     this.style.height = this.scrollHeight + "px";
   });
 
-  // Copy helper function using the Clipboard API.
-  window.copyText = function(elementId, button) {
-    const text = document.getElementById(elementId).textContent;
-    navigator.clipboard.writeText(text).then(() => {
-      const originalText = button.textContent;
-      const originalBg = button.style.backgroundColor;
-      button.textContent = "Copied";
-      button.style.backgroundColor = "#FFC107";
-      setTimeout(() => {
-        button.textContent = originalText;
-        button.style.backgroundColor = originalBg || "#28a745";
-      }, 2000);
-    }).catch(err => {
-      console.error("Failed to copy text:", err);
-    });
-  };
+  // Create tooltip element
+  const tooltip = document.createElement("div");
+  tooltip.className = "tooltip";
+  document.body.appendChild(tooltip);
 
-  // Helper: split a verbatim message into three parts (≤1999 chars), backtracking to avoid cutting words,
-  // and ensure new parts do not start with a space.
-  function splitIntoThreeVerbatim(message) {
-    const MAX = 1999;
+  // Split into ≤1999-char parts without breaking words
+  function splitByWords(text, maxLen = 1999) {
+    const tokens = text.match(/\S+\s*/g) || [];
     const parts = [];
-    let start = 0;
-
-    for (let i = 0; i < 3; i++) {
-      if (start >= message.length) {
-        parts.push("");
-        continue;
+    let current = "";
+    for (const token of tokens) {
+      if (current.length + token.length > maxLen) {
+        parts.push(current);
+        current = token;
+      } else {
+        current += token;
       }
-
-      let end = Math.min(start + MAX, message.length);
-      if (end < message.length) {
-        const lastSpace = message.lastIndexOf(" ", end);
-        const lastNl    = message.lastIndexOf("\n", end);
-        const splitPos  = Math.max(lastSpace, lastNl);
-        if (splitPos > start) {
-          end = splitPos;
-        }
-      }
-
-      let part = message.slice(start, end);
-      // Remove leading space if this is part 2 or 3
-      if (i > 0 && part.startsWith(" ")) {
-        part = part.slice(1);
-      }
-
-      parts.push(part);
-      start = end;
     }
-
+    if (current) parts.push(current);
     return parts;
   }
 
-  document.getElementById("generate3SP").addEventListener("click", function() {
-    const discordID    = document.getElementById("discordID").value.replace(/\D/g, '') || "Nil";
-    const interactions = document.getElementById("interactions").value || "Nil";
-    const staffMember  = document.getElementById("staffMember").value || "Nil";
-    const staffRole    = document.getElementById("staffRole").value || "Nil";
-    const hasNitro     = document.getElementById("discordNitro").value === "yes";
-
-    // GROUPING: Split the input text into infraction blocks
-    function groupInfractions(text) {
-      const lines = text.split('\n');
-      let blocks = [];
-      let currentBlock = [];
-      const isInfractionStart = (line) => /^(warn(?:ed)?|kick(?:ed)?|ban(?:ned)?)/i.test(line.trim());
-
-      for (let line of lines) {
-        if (isInfractionStart(line) && currentBlock.length > 0) {
-          blocks.push(currentBlock.join('\n'));
-          currentBlock = [];
-        }
-        currentBlock.push(line);
+  // Group infractions into blocks
+  function groupInfractions(text) {
+    const lines = text.split("\n"), blocks = [], cur = [];
+    const isStart = l => /^(warn(?:ed)?|kick(?:ed)?|ban(?:ned)?)/i.test(l.trim());
+    for (let l of lines) {
+      if (isStart(l) && cur.length) {
+        blocks.push(cur.join("\n"));
+        cur.length = 0;
       }
-      if (currentBlock.length > 0) {
-        blocks.push(currentBlock.join('\n'));
-      }
-      return blocks;
+      cur.push(l);
     }
+    if (cur.length) blocks.push(cur.join("\n"));
+    return blocks;
+  }
 
-    const blocks = groupInfractions(interactions);
-    const validBlocks = blocks.filter(block => !/revoked by/i.test(block));
+  document.getElementById("generate3SP").addEventListener("click", () => {
+    const isNitro      = document.getElementById("discordNitro").value === "yes";
+    const rawID        = document.getElementById("discordID").value.replace(/\D/g, "") || "Nil";
+    const mention      = rawID !== "Nil" ? `<@${rawID}>` : "Nil";
+    const interactions = document.getElementById("interactions").value || "Nil";
+    const staffMember  = document.getElementById("staffMember").value  || "Nil";
+    const staffRole    = document.getElementById("staffRole").value    || "Nil";
 
-    // TALLYING: Count warns, kicks, bans
-    let warnCount = 0, kickCount = 0, banCount = 0;
-    validBlocks.forEach(block => {
-      const lines = block.split("\n").map(l => l.trim()).filter(l => l);
-      if (lines.length) {
-        const actionLine = lines[0];
-        if (/warn/i.test(actionLine)) warnCount++;
-        if (/kick/i.test(actionLine)) kickCount++;
-        if (/ban/i.test(actionLine)) banCount++;
-      }
+    const countBoxEl = document.getElementById("boxCount");
+    countBoxEl.textContent = "";
+    countBoxEl.style.display = "none";
+
+    // Build cleanedInteractions
+    const blocks = groupInfractions(interactions).filter(b => !/revoked by/i.test(b));
+    let warn = 0, kick = 0, ban = 0;
+    blocks.forEach(b => {
+      const a = b.split("\n")[0].trim();
+      if (/warn/i.test(a)) warn++;
+      if (/kick/i.test(a)) kick++;
+      if (/ban/i.test(a))  ban++;
     });
 
-    // TRANSFORMATION: Extract action + reason
-    const transformedBlocks = validBlocks.map(block => {
-      const lines = block.split("\n").map(l => l.trim()).filter(l => l);
-      if (lines.length >= 3) {
-        return lines[0] + "\n" + lines[2];
-      } else if (lines.length === 2) {
-        return lines[0] + "\n" + lines[1];
-      }
-      return lines[0] || "";
-    });
-    const validInteractions = transformedBlocks.join('\n\n');
+    const transformed = blocks.map(b => {
+      const L = b.split("\n").map(x => x.trim()).filter(x => x);
+      if (L.length >= 3) return L[0] + "\n" + L[2];
+      if (L.length === 2) return L[0] + "\n" + L[1];
+      return L[0] || "";
+    }).join("\n\n");
 
-    // PROCESSING: Fix spacing and remove "by <staff>"
-    let processedInteractions = validInteractions.replace(/(warn(?:ed)?|kick(?:ed)?|ban(?:ned)?)(?=\d)/gi, '$1 ');
-    processedInteractions = processedInteractions.replace(/(warn(?:ed)?|kick(?:ed)?|ban(?:ned)?)(\s+by\s+\S+)/gi, '$1');
+    let processed = transformed
+      .replace(/(warn(?:ed)?|kick(?:ed)?|ban(?:ned)?)(?=\d)/gi, "$1 ")
+      .replace(/(warn(?:ed)?|kick(?:ed)?|ban(?:ned)?)(\s+by\s+\S+)/gi, "$1");
 
-    // CLEANING: Trim each line
-    const cleanedInteractions = processedInteractions.split("\n").map(l => l.trim()).join("\n");
+    const cleaned = processed.split("\n").map(x => x.trim()).join("\n");
 
-    const formattedDiscordID = discordID !== "Nil" ? `<@${discordID}>` : "Nil";
-
-    // OUTPUT: Full 3SP template (verbatim)
-    const fullOutput = `Hello ${formattedDiscordID}, 
+    // Full 3SP template with code fences
+    const fullOutput = `Hello ${mention}, 
 
 The Beehive Staff have noticed that you have been involved in multiple negative interactions (Warns/Kicks/Bans) on the server. It is apparent that there is a consistent breach of our server rules and guidelines, which raises concerns about the frequency of our interactions with you. 
 
 Below is a summary of your prior staff interactions:
-\`\`\`${cleanedInteractions}\`\`\`
+\`\`\`
+${cleaned}
+\`\`\`
 
 Due to these interactions, the Beehive Staff Team now require an immediate adjustment in your roleplay approach. Strict compliance with our server rules and guidelines is imperative. 
 
@@ -158,27 +117,80 @@ Kind Regards,
 ${staffMember},  
 ${staffRole}`;
 
-    // SPLITTING OUTPUT & DISPLAY
-    if (!hasNitro) {
-      const [p1, p2, p3] = splitIntoThreeVerbatim(fullOutput);
-      document.getElementById("outputShort3SP").textContent      = p1;
-      document.getElementById("outputShort3SP_Part2").textContent = p2;
-      document.getElementById("outputShort3SP_Part3").textContent = p3;
-      document.getElementById("shortOutputContainer").style.display      = "block";
-      document.getElementById("shortOutputPart2Container").style.display = "block";
-      document.getElementById("shortOutputPart3Container").style.display = p3.length ? "block" : "none";
-      document.getElementById("fullOutputContainer").style.display       = "none";
-    } else {
-      document.getElementById("outputFull3SP").textContent = fullOutput;
-      document.getElementById("fullOutputContainer").style.display       = "block";
-      document.getElementById("shortOutputContainer").style.display      = "none";
-      document.getElementById("shortOutputPart2Container").style.display = "none";
-      document.getElementById("shortOutputPart3Container").style.display = "none";
+    const fullBox = document.getElementById("fullOutputContainer");
+    const wrapper = document.getElementById("shortOutputsContainer");
+    wrapper.innerHTML = "";
+
+    function attachTooltip(el) {
+      el.addEventListener("mouseenter", e => {
+        tooltip.textContent = "Click to Copy";
+        tooltip.style.display = "block";
+      });
+      el.addEventListener("mousemove", e => {
+        tooltip.style.left = e.pageX + 10 + "px";
+        tooltip.style.top = e.pageY + 10 + "px";
+      });
+      el.addEventListener("mouseleave", () => {
+        tooltip.style.display = "none";
+      });
     }
 
-    // Update tally boxes
-    document.getElementById("warnCount").innerText = warnCount;
-    document.getElementById("kickCount").innerText = kickCount;
-    document.getElementById("banCount").innerText = banCount;
+    if (isNitro) {
+      fullBox.style.display = "block";
+      fullBox.textContent = "";
+      const outputEl = document.createElement("p");
+      outputEl.id = "outputFull3SP";
+      outputEl.className = "output";
+      outputEl.textContent = fullOutput;
+      fullBox.appendChild(outputEl);
+      attachTooltip(fullBox);
+      fullBox.addEventListener("click", () => {
+        navigator.clipboard.writeText(fullOutput);
+        if (!fullBox.querySelector(".copy-stamp")) {
+          const stampImg = new Image();
+          stampImg.src = "copied-stamp.png";
+          stampImg.className = "copy-stamp";
+          fullBox.appendChild(stampImg);
+        }
+      });
+    } else {
+      fullBox.style.display = "none";
+      const boxes = splitByWords(fullOutput, 1999);
+      countBoxEl.textContent = `Parts to copy: ${boxes.length}`;
+      countBoxEl.style.display = "block";
+
+      boxes.forEach((b, i) => {
+        const box = document.createElement("div");
+        box.className = "output-box";
+
+        const label = document.createElement("div");
+        label.className = "part-number";
+        label.textContent = `${i + 1}`;
+        box.appendChild(label);
+
+        const el = document.createElement("p");
+        el.id = `part${i + 1}`;
+        el.className = "output";
+        el.textContent = b;
+        box.appendChild(el);
+
+        attachTooltip(box);
+        box.addEventListener("click", () => {
+          navigator.clipboard.writeText(el.textContent);
+          if (!box.querySelector(".copy-stamp")) {
+            const stampImg = new Image();
+            stampImg.src = "copied-stamp.png";
+            stampImg.className = "copy-stamp";
+            box.appendChild(stampImg);
+          }
+        });
+
+        wrapper.appendChild(box);
+      });
+    }
+
+    document.getElementById("warnCount").innerText = warn;
+    document.getElementById("kickCount").innerText = kick;
+    document.getElementById("banCount").innerText = ban;
   });
 });
