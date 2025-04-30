@@ -1,3 +1,4 @@
+<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,9 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>3SP Template Generator</title>
   <link rel="stylesheet" href="style.css">
-
-  <!-- keep your template 100% verbatim; only this helper fn added -->
   <script>
+    // keep this so Discord ID strips non-digits
     function formatDiscordID() {
       const input = document.getElementById("discordID");
       input.value = input.value.replace(/\D/g, '');
@@ -94,28 +94,15 @@
     </div>
 
     <button id="generate3SP">Generate</button>
-    
-    <!-- Nitro users get the full single message -->
+    <div id="boxCount"></div>
+
+    <!-- Nitro users see this single box -->
     <div id="fullOutputContainer" class="output-box" style="display: none;">
       <p id="outputFull3SP" class="output"></p>
-      <button class="copy-btn" onclick="copyText('outputFull3SP', this)">Copy</button>
     </div>
-    
-    <!-- Non-Nitro, part 1 -->
-    <div id="shortOutputContainer" class="output-box" style="display: none;">
-      <p id="outputShort3SP" class="output"></p>
-      <button class="copy-btn" onclick="copyText('outputShort3SP', this)">Copy</button>
-    </div>
-    <!-- Non-Nitro, part 2 -->
-    <div id="shortOutputPart2Container" class="output-box" style="display: none;">
-      <p id="outputShort3SP_Part2" class="output"></p>
-      <button class="copy-btn" onclick="copyText('outputShort3SP_Part2', this)">Copy</button>
-    </div>
-    <!-- Non-Nitro, part 3 -->
-    <div id="shortOutputPart3Container" class="output-box" style="display: none;">
-      <p id="outputShort3SP_Part3" class="output"></p>
-      <button class="copy-btn" onclick="copyText('outputShort3SP_Part3', this)">Copy</button>
-    </div>
+
+    <!-- Dynamic boxes for non-Nitro users -->
+    <div id="shortOutputsContainer"></div>
   </div>
 
   <script src="script.js"></script>
